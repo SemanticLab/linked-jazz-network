@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jazz Oral Histories — People Network</title>
+<style>
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --hairline: rgba(255,255,255,0.10);
+    --accent: #3987e5;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--page); color: var(--ink-2);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  #stage { position: fixed; inset: 0; }
+  canvas.layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #scene { background: var(--surface); }
+  #overlay { pointer-events: none; }
+
+  /* ---------- top bar ---------- */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px;
+    display: flex; align-items: center; gap: 16px; padding: 0 16px;
+    background: linear-gradient(rgba(13,13,13,0.92), rgba(13,13,13,0.75) 70%, transparent);
+    pointer-events: none; z-index: 10;
+  }
+  #topbar > * { pointer-events: auto; }
+  #title { color: var(--ink); font-size: 15px; font-weight: 650; white-space: nowrap; }
+  #title small { color: var(--ink-3); font-weight: 400; margin-left: 10px; }
+
+  #searchwrap { position: relative; width: 340px; }
+  #search {
+    width: 100%; padding: 7px 12px; border-radius: 8px;
+    border: 1px solid var(--hairline); background: var(--surface); color: var(--ink);
+    font: inherit; outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #results {
+    position: absolute; top: 38px; left: 0; right: 0; display: none;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px;
+    overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  #results .row {
+    display: flex; align-items: center; gap: 9px; padding: 7px 12px; cursor: pointer;
+  }
+  #results .row:hover, #results .row.sel { background: rgba(255,255,255,0.06); }
+  #results .row .nm { color: var(--ink); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #results .row .deg { color: var(--ink-3); font-size: 11px; }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  /* ---------- left rail ---------- */
+  #rail {
+    position: fixed; top: 64px; left: 12px; width: 244px; max-height: calc(100% - 110px);
+    overflow-y: auto; z-index: 9;
+    background: rgba(26,26,25,0.94); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 4px 0 8px;
+  }
+  #rail h3 {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-3); padding: 10px 14px 5px;
+  }
+  #rail label.opt {
+    display: flex; align-items: center; gap: 8px; padding: 3px 14px; cursor: pointer;
+    color: var(--ink-2);
+  }
+  #rail label.opt:hover { color: var(--ink); }
+  #rail label.opt .cnt { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+  #rail input[type="checkbox"] { accent-color: var(--accent); }
+  .commrow {
+    display: flex; align-items: center; gap: 9px; padding: 4px 14px; cursor: pointer;
+    color: var(--ink-2);
+  }
+  .commrow:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
+  .commrow.active { background: rgba(57,135,229,0.16); color: var(--ink); }
+  .commrow .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .commrow .cnt { color: var(--ink-3); font-size: 11px; white-space: nowrap; }
+  #otherlist .commrow { padding-left: 24px; font-size: 12px; }
+  #otherlist .commrow .dot { width: 7px; height: 7px; }
+  #minn { width: 100%; accent-color: var(--accent); }
+  .slider-row { padding: 2px 14px 6px; }
+  .slider-row .lbl { display: flex; justify-content: space-between; color: var(--ink-3); font-size: 11px; }
+  #resetview {
+    margin: 8px 14px 2px; padding: 6px 10px; width: calc(100% - 28px);
+    background: none; border: 1px solid var(--hairline); border-radius: 7px;
+    color: var(--ink-2); font: inherit; cursor: pointer;
+  }
+  #resetview:hover { color: var(--ink); border-color: var(--ink-3); }
+
+  /* ---------- person modal ---------- */
+  #mback {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);
+    align-items: center; justify-content: center;
+  }
+  #mback.open { display: flex; }
+  #modal {
+    width: min(1120px, 95vw); height: min(84vh, 880px);
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #mhead {
+    display: flex; gap: 16px; align-items: center; padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--hairline); position: relative; flex: none;
+  }
+  #mclose {
+    position: absolute; top: 12px; right: 12px; width: 30px; height: 30px;
+    background: none; border: none; color: var(--ink-3); font-size: 19px; cursor: pointer;
+  }
+  #mclose:hover { color: var(--ink); }
+  #mportrait { width: 96px; height: 96px; border-radius: 50%; flex: none; background: var(--page); }
+  #mname { color: var(--ink); font-size: 21px; font-weight: 700; line-height: 1.15; }
+  .chips { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 20px;
+    border: 1px solid var(--hairline); color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px;
+  }
+  .chip.itv { border-color: rgba(255,255,255,0.35); color: var(--ink); }
+  #mstats { padding-top: 7px; color: var(--ink-3); font-size: 12px; }
+  #mstats b { color: var(--ink); font-weight: 600; }
+  #mlinks { padding-top: 4px; font-size: 12px; }
+  #mlinks a { color: var(--accent); text-decoration: none; margin-right: 14px; cursor: pointer; }
+  #mlinks a:hover { text-decoration: underline; }
+
+  #mbody { flex: 1; display: flex; min-height: 0; }
+  #mrels { flex: 1; overflow-y: auto; padding: 6px 20px 20px; min-width: 0; }
+  #mrels section { margin-top: 14px; }
+  #mrels h4 {
+    font-size: 11px; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 7px;
+  }
+  #mrels h4 .n { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+  .names { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pchip {
+    display: inline-flex; align-items: center; gap: 6px; max-width: 240px;
+    font-size: 12px; padding: 3.5px 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--hairline); color: var(--ink); background: rgba(255,255,255,0.03);
+  }
+  .pchip:hover { border-color: var(--accent); background: rgba(57,135,229,0.10); }
+  .pchip.sel { border-color: var(--accent); background: rgba(57,135,229,0.20); }
+  .pchip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pchip .dir { color: var(--ink-3); font-size: 11px; }
+  .pchip .xn { color: var(--ink-3); font-size: 10.5px; }
+  .morebtn {
+    font-size: 11.5px; padding: 3.5px 10px; border-radius: 8px; cursor: pointer;
+    border: 1px dashed var(--hairline); color: var(--ink-3); background: none;
+  }
+  .morebtn:hover { color: var(--ink); }
+
+  #mev {
+    width: 0; flex: none; border-left: 1px solid var(--hairline);
+    overflow-y: auto; transition: width 0.15s ease; background: rgba(13,13,13,0.35);
+  }
+  #mev.open { width: 400px; }
+  #mev .evhead {
+    position: sticky; top: 0; background: var(--surface); z-index: 2;
+    padding: 13px 16px 10px; border-bottom: 1px solid var(--hairline);
+    color: var(--ink); font-weight: 650; font-size: 13px;
+  }
+  #mev .evhead small { display: block; color: var(--ink-3); font-weight: 400; margin-top: 2px; }
+  .evitem { padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+  .evitem .src { color: var(--ink-3); font-size: 11px; margin-bottom: 6px; }
+  .evitem .src b { color: var(--ink-2); font-weight: 600; }
+  .evitem .reltag {
+    display: inline-block; font-size: 10.5px; padding: 1px 7px; border-radius: 12px;
+    border: 1px solid var(--hairline); color: var(--ink-2); margin-bottom: 7px;
+  }
+  .evquote {
+    font-size: 12.5px; color: var(--ink); border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 10px; margin-bottom: 9px; font-style: italic;
+  }
+  .turn { margin-bottom: 8px; font-size: 12px; color: var(--ink-2); }
+  .turn.src0 { opacity: 0.75; }
+  .turn.src1 { border-left: 2px solid rgba(255,255,255,0.25); padding-left: 8px; }
+  .turn .sp { color: var(--ink); font-weight: 650; font-size: 11px; }
+  .turn mark { background: rgba(57,135,229,0.35); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+  .evload { padding: 20px 16px; color: var(--ink-3); font-size: 12px; }
+  .evread { margin-top: 2px; font-size: 11.5px; }
+  .evread a { color: var(--accent); text-decoration: none; }
+  .evread a:hover { text-decoration: underline; }
+
+  /* ---------- footer ---------- */
+  #footer {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 34px; z-index: 8;
+    display: flex; align-items: center; gap: 18px; padding: 0 16px;
+    color: var(--ink-3); font-size: 11.5px;
+    background: linear-gradient(transparent, rgba(13,13,13,0.85));
+    pointer-events: none;
+  }
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--page); color: var(--ink-3); z-index: 50; font-size: 14px;
+  }
+  ::-webkit-scrollbar { width: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="scene" class="layer"></canvas>
+  <canvas id="overlay" class="layer"></canvas>
+</div>
+
+<div id="topbar">
+  <div id="title">Jazz Oral Histories<small id="subtitle"></small></div>
+  <div id="searchwrap">
+    <input id="search" type="search" placeholder="Search a person…" autocomplete="off" spellcheck="false">
+    <div id="results"></div>
+  </div>
+</div>
+
+<div id="rail">
+  <h3>Communities</h3>
+  <div id="commlist"></div>
+  <h3>Relationships</h3>
+  <div id="rellist"></div>
+  <div class="slider-row">
+    <div class="lbl"><span>corroboration</span><span id="minnlbl">≥ 1 interview</span></div>
+    <input id="minn" type="range" min="1" max="5" step="1" value="1">
+  </div>
+  <h3>Institutions</h3>
+  <div id="instlist"></div>
+  <h3>Display</h3>
+  <label class="opt"><input id="showsing" type="checkbox" checked> single-mention periphery</label>
+  <label class="opt"><input id="hideunc" type="checkbox" checked> hide unconnected</label>
+  <button id="resetview">Reset view</button>
+</div>
+
+<div id="mback">
+  <div id="modal">
+    <div id="mhead">
+      <button id="mclose" title="close">✕</button>
+      <canvas id="mportrait" width="192" height="192"></canvas>
+      <div style="min-width:0">
+        <div id="mname"></div>
+        <div class="chips" id="mchips"></div>
+        <div id="mstats"></div>
+        <div id="mlinks"></div>
+      </div>
+    </div>
+    <div id="mbody">
+      <div id="mrels"></div>
+      <div id="mev"></div>
+    </div>
+  </div>
+</div>
+
+<div id="footer">
+  <span id="viscount"></span>
+  <span>scroll to zoom · drag to pan · click a person</span>
+</div>
+
+<div id="loading">building data… (graph.data.js not found — run network/build/layout.mjs)</div>
+
+<script src="graph.data.js"></script>
+<script src="atlas.data.js"></script>
+<script src="labels.data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
